@@ -18,4 +18,4 @@ beautifulsoup4>=4.12.0
 markdownify>=0.11.0
 
 # Logging and utilities
-python-logging>=0.4.9 
+python-logging
