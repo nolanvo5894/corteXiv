@@ -1,0 +1,21 @@
+# Core dependencies
+streamlit>=1.31.0
+snowflake-connector-python>=3.6.0
+snowflake-snowpark-python>=1.12.0
+
+# arXiv and data processing
+arxiv>=2.0.0
+pandas>=2.2.0
+
+# PDF and document processing
+PyMuPDF>=1.23.0  # fitz
+docling>=0.1.0
+langchain-text-splitters>=0.0.1
+
+# Web and text processing
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+markdownify>=0.11.0
+
+# Logging and utilities
+python-logging>=0.4.9 
