@@ -112,7 +112,7 @@ def display_library_page():
             return
 
         # Add paper recommendation section at the top
-        st.markdown("## 📚 Recommended Paper")
+        st.markdown("## 📚 You May Like This Paper")
         recommendation, search_phrase = get_paper_recommendation(papers)
         
         if recommendation:
