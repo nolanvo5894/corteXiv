@@ -122,7 +122,7 @@ def display_library_page():
             search_term = st.text_input(
                 "What do you want to search for in your library?",
                 value=st.session_state.get('metadata_search_term', ''),
-                placeholder="Enter your search term...",
+                placeholder="Enter your query...",
                 key="metadata_search"
             ).lower()
             
@@ -170,7 +170,7 @@ def display_library_page():
             semantic_query = st.text_input(
                 "Search paper abstracts semantically",
                 value=st.session_state.get('semantic_search_term', ''),
-                placeholder="Describe what you're looking for...",
+                placeholder="Enter your query...",
                 key="semantic_search"
             )
             
