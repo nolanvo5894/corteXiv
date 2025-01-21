@@ -102,6 +102,7 @@ def display_library_page():
     st.title("Personal Library")
     
     try:
+        # Force refresh papers from Snowflake each time
         papers = get_saved_papers()
         
         if not papers:
@@ -111,9 +112,8 @@ def display_library_page():
         # Create tabs for different search methods
         search_tab, semantic_tab = st.tabs(["Metadata Search", "Semantic Search"])
         
-        # Initialize filtered_papers with all papers
-        if 'filtered_papers' not in st.session_state:
-            st.session_state.filtered_papers = papers
+        # Initialize filtered_papers with fresh papers data
+        st.session_state.filtered_papers = papers
         
         # Handle metadata search
         with search_tab:
@@ -234,6 +234,9 @@ def display_library_page():
                         with st.spinner('Deleting paper...'):
                             if delete_paper(paper['paper_id']):
                                 st.success(f"Deleted paper: {paper['title']}")
+                                # Clear the filtered papers cache and rerun
+                                if 'filtered_papers' in st.session_state:
+                                    del st.session_state.filtered_papers
                                 st.rerun()
                             else:
                                 st.error("Failed to delete paper")
