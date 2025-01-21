@@ -208,11 +208,26 @@ def display_library_page():
                     st.session_state.semantic_search_term = ""
                     st.rerun()
 
-        # Display number of results
-        st.write(f"Found {len(st.session_state.filtered_papers)} papers")
+        # Initialize library pagination state if not exists
+        if "library_current_page" not in st.session_state:
+            st.session_state.library_current_page = 1
+
+        # Display number of results and pagination
+        papers_per_page = 10
+        filtered_papers = st.session_state.filtered_papers
+        total_pages = len(filtered_papers) // papers_per_page + (1 if len(filtered_papers) % papers_per_page > 0 else 0)
         
-        # Display papers in a single column layout
-        for idx, paper in enumerate(st.session_state.filtered_papers):
+        st.write(f"Found {len(filtered_papers)} papers")
+        
+        # Top pagination controls
+        display_pagination_controls(st.session_state.library_current_page, total_pages, "lib_top")
+        
+        # Display paginated papers
+        start_idx = (st.session_state.library_current_page - 1) * papers_per_page
+        end_idx = min(start_idx + papers_per_page, len(filtered_papers))
+        
+        # Display papers in the current page
+        for paper in filtered_papers[start_idx:end_idx]:
             with st.container(border=True):
                 st.markdown(f"### {paper['title']}")
                 st.write(f"**Authors:** {paper['authors']}")
@@ -247,6 +262,9 @@ def display_library_page():
                     st.write(paper['abstract'])
             
             st.markdown("---")  # Add separator between papers
+        
+        # Bottom pagination controls
+        display_pagination_controls(st.session_state.library_current_page, total_pages, "lib_bottom")
                 
     except Exception as e:
         st.error(f"Error loading library: {str(e)}")
@@ -381,6 +399,35 @@ def display_paper_container(paper, paper_obj, idx, papers):
         with st.expander("Show Abstract"):
             st.write(paper['Abstract'])
 
+def display_pagination_controls(current_page: int, total_pages: int, location: str = "top"):
+    """Display pagination controls with page selectbox and navigation buttons."""
+    col1, col2, col3 = st.columns([1, 3, 1])
+    
+    with col1:
+        if st.button("← Previous", key=f"prev_{location}", 
+                    disabled=current_page <= 1, use_container_width=True):
+            st.session_state.current_page = current_page - 1
+            st.rerun()
+    
+    with col2:
+        page = st.selectbox(
+            "Page",
+            options=range(1, total_pages + 1),
+            index=current_page - 1,
+            format_func=lambda x: f"Page {x} of {total_pages}",
+            key=f"page_select_{location}",
+            label_visibility="collapsed"
+        )
+        if page != current_page:
+            st.session_state.current_page = page
+            st.rerun()
+    
+    with col3:
+        if st.button("Next →", key=f"next_{location}", 
+                    disabled=current_page >= total_pages, use_container_width=True):
+            st.session_state.current_page = current_page + 1
+            st.rerun()
+
 def display_search_results():
     """Display paginated search results."""
     papers = st.session_state.cached_results.papers
@@ -391,17 +438,10 @@ def display_search_results():
     
     st.write(f"Found {len(papers_df)} papers")
     
-    page = st.selectbox(
-        "Page",
-        options=range(1, total_pages + 1),
-        index=st.session_state.current_page - 1,
-        format_func=lambda x: f"Page {x} of {total_pages}"
-    )
+    # Top pagination controls
+    display_pagination_controls(st.session_state.current_page, total_pages, "top")
     
-    if page != st.session_state.current_page:
-        st.session_state.current_page = page
-
-    start_idx = (page - 1) * papers_per_page
+    start_idx = (st.session_state.current_page - 1) * papers_per_page
     end_idx = min(start_idx + papers_per_page, len(papers_df))
     
     # Display papers in a single column
@@ -410,6 +450,9 @@ def display_search_results():
         paper_obj = papers[idx]
         display_paper_container(paper, paper_obj, idx, papers)
         st.markdown("---")  # Add separator between papers
+    
+    # Bottom pagination controls
+    display_pagination_controls(st.session_state.current_page, total_pages, "bottom")
 
 def handle_navigation():
     """Handle navigation between pages."""
