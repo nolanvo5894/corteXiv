@@ -9,6 +9,7 @@ A modern interface for exploring and interacting with arXiv papers, powered by S
 - Save papers to your personal library
 - Organize and search for papers by metadata
 - Semantic search through your saved papers using Snowflake Cortex
+- Smart paper recommendations based on your library content
 
 ### 💬 Interactive Paper Chat
 - Chat with any paper in your library
@@ -45,9 +46,10 @@ A modern interface for exploring and interacting with arXiv papers, powered by S
 #### LLM Integration
 - Uses Mistral Large v2 model through Snowflake Cortex
 - Used for:
-  - simple RAG for Paper Chat and Cortex Search Summary: the LLM take in the context from Cortex Search and use it to generate a response.
-  - structured output for suggesting deep dive questions.
-  - multi-step agentic RAG for Paper Key Insights: the LLM takes in the abstract of a paper, generate new queries by itself, called Cortex to do RAG to generate answers to those queries, and then synthesise them for a Key Insights report. 
+  - simple RAG for Paper Chat and Cortex Search Summary
+  - structured output for suggesting deep dive questions
+  - multi-step agentic RAG for Paper Key Insights
+  - intelligent paper recommendations based on library analysis
 
 ### Chat System Architecture
 
