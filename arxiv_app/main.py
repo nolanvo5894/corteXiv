@@ -111,7 +111,7 @@ def display_library_page():
             return
 
         # Create tabs for different search methods
-        search_tab, semantic_tab = st.tabs(["Metadata Search", "Semantic Search"])
+        search_tab, semantic_tab = st.tabs(["Metadata Search", "Cortex Search"])
         
         # Initialize filtered_papers with fresh papers data
         st.session_state.filtered_papers = papers
@@ -166,12 +166,15 @@ def display_library_page():
 
         # Handle semantic search
         with semantic_tab:
+            st.write("What do you want to search for in your library?")
             semantic_query = st.text_input(
                 "Search paper abstracts semantically",
                 value=st.session_state.get('semantic_search_term', ''),
                 placeholder="Describe what you're looking for...",
                 key="semantic_search"
             )
+            
+            st.info("Papers will be ordered by relevance score")
             
             # Add buttons under the search bar
             col1, col2 = st.columns([1, 1])
