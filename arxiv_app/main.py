@@ -125,16 +125,17 @@ def display_library_page():
                 key="metadata_search"
             ).lower()
             
-            # Add field selector and buttons in columns
-            col1, col2, col3 = st.columns([2, 1, 1])
+            # Add field selector
+            search_field = st.selectbox(
+                "Search in",
+                options=["All Fields", "Title", "Authors", "Categories"],
+                index=0,
+                key="metadata_field"
+            )
+            
+            # Add buttons under the filter bar
+            col1, col2 = st.columns([1, 1])
             with col1:
-                search_field = st.selectbox(
-                    "Search in",
-                    options=["All Fields", "Title", "Authors", "Categories"],
-                    index=0,
-                    key="metadata_field"
-                )
-            with col2:
                 if st.button("🔍 Search", use_container_width=True):
                     # Store search term in session state
                     st.session_state.metadata_search_term = search_term
@@ -155,7 +156,7 @@ def display_library_page():
                         elif search_field == "Categories":
                             st.session_state.filtered_papers = [p for p in papers if search_term in p['categories'].lower()]
             
-            with col3:
+            with col2:
                 if st.button("🌬️ Clear", use_container_width=True):
                     # Reset search state
                     st.session_state.filtered_papers = papers
@@ -164,48 +165,47 @@ def display_library_page():
 
         # Handle semantic search
         with semantic_tab:
-            col1, col2 = st.columns([3, 1])
+            semantic_query = st.text_input(
+                "Search paper abstracts semantically",
+                value=st.session_state.get('semantic_search_term', ''),
+                placeholder="Describe what you're looking for...",
+                key="semantic_search"
+            )
+            
+            # Add buttons under the search bar
+            col1, col2 = st.columns([1, 1])
             with col1:
-                semantic_query = st.text_input(
-                    "Search paper abstracts semantically",
-                    value=st.session_state.get('semantic_search_term', ''),
-                    placeholder="Describe what you're looking for...",
-                    key="semantic_search"
-                )
+                if st.button("🔍 Search", key="semantic_search_btn", use_container_width=True):
+                    if semantic_query:
+                        # Store search term in session state
+                        st.session_state.semantic_search_term = semantic_query
+                        
+                        # Get Snowflake session and setup Cortex search
+                        session = get_snowflake_session()
+                        root = Root(session)
+                        svc = root.databases[CORTEX_SEARCH_DATABASE].schemas[CORTEX_SEARCH_SCHEMA].cortex_search_services[CORTEX_SEARCH_ABSTRACT_SERVICE]
+                        
+                        # Perform semantic search
+                        response = svc.search(
+                            semantic_query, 
+                            ["ABSTRACT", "PAPER_ID"], 
+                            limit=len(papers)
+                        )
+                        
+                        # Map results back to full paper metadata
+                        paper_id_to_metadata = {p['paper_id']: p for p in papers}
+                        st.session_state.filtered_papers = [
+                            paper_id_to_metadata[result['PAPER_ID']]
+                            for result in response.results
+                            if result['PAPER_ID'] in paper_id_to_metadata
+                        ]
+            
             with col2:
-                col2_1, col2_2 = st.columns(2)
-                with col2_1:
-                    if st.button("🔍 Search", key="semantic_search_btn", use_container_width=True):
-                        if semantic_query:
-                            # Store search term in session state
-                            st.session_state.semantic_search_term = semantic_query
-                            
-                            # Get Snowflake session and setup Cortex search
-                            session = get_snowflake_session()
-                            root = Root(session)
-                            svc = root.databases[CORTEX_SEARCH_DATABASE].schemas[CORTEX_SEARCH_SCHEMA].cortex_search_services[CORTEX_SEARCH_ABSTRACT_SERVICE]
-                            
-                            # Perform semantic search
-                            response = svc.search(
-                                semantic_query, 
-                                ["ABSTRACT", "PAPER_ID"], 
-                                limit=len(papers)
-                            )
-                            
-                            # Map results back to full paper metadata
-                            paper_id_to_metadata = {p['paper_id']: p for p in papers}
-                            st.session_state.filtered_papers = [
-                                paper_id_to_metadata[result['PAPER_ID']]
-                                for result in response.results
-                                if result['PAPER_ID'] in paper_id_to_metadata
-                            ]
-                
-                with col2_2:
-                    if st.button("❌ Clear", key="semantic_clear_btn", use_container_width=True):
-                        # Reset search state
-                        st.session_state.filtered_papers = papers
-                        st.session_state.semantic_search_term = ""
-                        st.rerun()
+                if st.button("🌬️ Clear", key="semantic_clear_btn", use_container_width=True):
+                    # Reset search state
+                    st.session_state.filtered_papers = papers
+                    st.session_state.semantic_search_term = ""
+                    st.rerun()
 
         # Display number of results
         st.write(f"Found {len(st.session_state.filtered_papers)} papers")
