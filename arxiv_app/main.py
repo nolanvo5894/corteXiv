@@ -26,6 +26,7 @@ from config import (
 )
 from functools import partial
 import time
+import random
 
 logger = setup_logging()
 logger.info("Starting main.py")
@@ -109,6 +110,39 @@ def display_library_page():
         if not papers:
             st.info("Your library is empty. Add papers from the Search page!")
             return
+
+        # Add paper recommendation section at the top
+        st.markdown("## 📚 Recommended Paper")
+        recommendation, search_phrase = get_paper_recommendation(papers)
+        
+        if recommendation:
+            paper = recommendation['paper']
+            with st.container(border=True):
+                st.markdown(f"### {paper.title}")
+                st.write(f"**Authors:** {', '.join(paper.authors)}")
+                st.write(f"**Published:** {paper.published.strftime('%Y-%m-%d')}")
+                st.write(f"**Categories:** {', '.join(paper.categories)}")
+                st.write(f"**Found using search phrase:** _{search_phrase}_")
+                
+                # Add buttons for actions
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Add to Database", key="add_recommended"):
+                        with st.spinner('Processing paper...'):
+                            if process_and_upload_paper(paper):
+                                st.success("Paper added to library!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to add paper")
+                with col2:
+                    st.markdown(f"[Download PDF]({paper.pdf_url})")
+                
+                with st.expander("Show Abstract"):
+                    st.write(paper.summary)
+        else:
+            st.info("No recommendations available at the moment.")
+        
+        st.markdown("---")
 
         # Create tabs for different search methods
         search_tab, semantic_tab = st.tabs(["Metadata Search", "Cortex Search"])
@@ -570,6 +604,93 @@ def display_how_to_page():
     
     *Powered by Snowflake Cortex and Mistral LLM* ✨
     """)
+
+def generate_search_phrases(papers, session):
+    """Generate search phrases from paper abstracts using LLM."""
+    # Combine titles and abstracts, converting authors to string
+    paper_content = "\n\n".join([
+        f"Title: {p['title']}\nAbstract: {p['abstract']}"
+        for p in papers
+    ])
+    
+    prompt = f"""Based on these papers:
+
+{paper_content}
+
+Generate two key search phrases that capture the main research areas or concepts discussed in these papers. 
+These phrases will be used to search for related papers on arXiv.
+
+Format your response exactly like this example:
+"quantum computing algorithms"
+"error correction in quantum systems"
+
+Your response should only contain the two phrases, each in quotes on a new line."""
+
+    response = Complete(
+        model="mistral-large2",
+        prompt=prompt,
+        session=session
+    )
+    
+    # Parse the two phrases from response
+    phrases = [line.strip().strip('"') for line in response.strip().split('\n')]
+    return phrases[:2]  # Ensure we only get 2 phrases
+
+def get_paper_recommendation(papers):
+    """Get paper recommendations based on existing library papers."""
+    if len(papers) < 3:
+        logger.info(f"Not enough papers for recommendations: {len(papers)} papers")
+        return None, None
+        
+    try:
+        # Get Snowflake session
+        session = get_snowflake_session()
+        
+        # Randomly select 3 papers
+        sample_papers = random.sample(papers, 3)
+        logger.info(f"Selected {len(sample_papers)} sample papers")
+        
+        # Generate search phrases
+        search_phrases = generate_search_phrases(sample_papers, session)
+        logger.info(f"Generated search phrases: {search_phrases}")
+        
+        # Search arXiv for each phrase
+        recommended_papers = []
+        used_phrase = None
+        
+        for phrase in search_phrases:
+            logger.info(f"Searching arXiv with phrase: {phrase}")
+            # Search arXiv
+            arxiv_results = search_arxiv_papers(phrase, max_results=5)
+            logger.info(f"Found {len(arxiv_results)} papers from arXiv")
+            
+            # Check each paper
+            for paper in arxiv_results:
+                paper_id = paper.get_short_id()
+                logger.info(f"Checking paper {paper_id}")
+                if not check_paper_exists(paper_id):
+                    logger.info(f"Found new paper: {paper_id}")
+                    # Convert authors to string
+                    paper.authors = [str(author) for author in paper.authors]
+                    # Found a paper not in library
+                    recommended_papers.append({
+                        'paper': paper,
+                        'search_phrase': phrase
+                    })
+                    break
+            
+            if recommended_papers:
+                used_phrase = phrase
+                break
+        
+        if not recommended_papers:
+            logger.info("No new papers found in recommendations")
+        
+        return recommended_papers[0] if recommended_papers else None, used_phrase
+        
+    except Exception as e:
+        logger.error(f"Error generating recommendations: {e}", exc_info=True)
+        return None, None
 
 if __name__ == "__main__":
     main() 
