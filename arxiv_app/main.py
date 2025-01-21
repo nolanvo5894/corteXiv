@@ -181,35 +181,81 @@ def display_library_page():
             with col1:
                 if st.button("🔍 Search", key="semantic_search_btn", use_container_width=True):
                     if semantic_query:
-                        # Store search term in session state
-                        st.session_state.semantic_search_term = semantic_query
-                        
-                        # Get Snowflake session and setup Cortex search
-                        session = get_snowflake_session()
-                        root = Root(session)
-                        svc = root.databases[CORTEX_SEARCH_DATABASE].schemas[CORTEX_SEARCH_SCHEMA].cortex_search_services[CORTEX_SEARCH_ABSTRACT_SERVICE]
-                        
-                        # Perform semantic search
-                        response = svc.search(
-                            semantic_query, 
-                            ["ABSTRACT", "PAPER_ID"], 
-                            limit=len(papers)
-                        )
-                        
-                        # Map results back to full paper metadata
-                        paper_id_to_metadata = {p['paper_id']: p for p in papers}
-                        st.session_state.filtered_papers = [
-                            paper_id_to_metadata[result['PAPER_ID']]
-                            for result in response.results
-                            if result['PAPER_ID'] in paper_id_to_metadata
-                        ]
-            
+                        with st.spinner('Searching papers...'):
+                            # Store search term in session state
+                            st.session_state.semantic_search_term = semantic_query
+                            
+                            # Get Snowflake session and setup Cortex search
+                            session = get_snowflake_session()
+                            root = Root(session)
+                            svc = root.databases[CORTEX_SEARCH_DATABASE].schemas[CORTEX_SEARCH_SCHEMA].cortex_search_services[CORTEX_SEARCH_ABSTRACT_SERVICE]
+                            
+                            # Perform semantic search
+                            response = svc.search(
+                                semantic_query, 
+                                ["ABSTRACT", "PAPER_ID"], 
+                                limit=len(papers)
+                            )
+                            
+                            # Map results back to full paper metadata
+                            paper_id_to_metadata = {p['paper_id']: p for p in papers}
+                            st.session_state.filtered_papers = [
+                                paper_id_to_metadata[result['PAPER_ID']]
+                                for result in response.results
+                                if result['PAPER_ID'] in paper_id_to_metadata
+                            ]
+
+                            # Generate overview for top 3 results
+                            if len(st.session_state.filtered_papers) > 0:
+                                with st.spinner('Generating overview...'):
+                                    top_papers = st.session_state.filtered_papers[:3]
+                                    abstracts = [f"Paper: {p['title']}\nAbstract: {p['abstract']}" 
+                                               for p in top_papers]
+                                    
+                                    overview_prompt = (
+                                        f"Based on this search query: \"{semantic_query}\"\n\n"
+                                        f"Here are the top {len(top_papers)} most relevant papers found:\n\n"
+                                        f"{' '.join(abstracts)}\n\n"
+                                        "Please provide a brief overview that:\n"
+                                        "1. Show the papers' name and main points that are relevant to the search query\n"
+                                        "2. Highlights key themes or findings across the papers\n\n"
+                                        "Format your response in clear paragraphs with no bullet points."
+                                    )
+                                    
+                                    # Get overview from LLM
+                                    overview = Complete(
+                                        model="mistral-large2",
+                                        prompt=overview_prompt,
+                                        session=session
+                                    )
+                                    
+                                    # Store overview in session state
+                                    st.session_state.search_overview = overview
+
             with col2:
                 if st.button("🌬️ Clear", key="semantic_clear_btn", use_container_width=True):
                     # Reset search state
                     st.session_state.filtered_papers = papers
                     st.session_state.semantic_search_term = ""
+                    if 'search_overview' in st.session_state:
+                        del st.session_state.search_overview
                     st.rerun()
+            
+            # Display overview if it exists
+            if 'search_overview' in st.session_state:
+                st.markdown("### Search Overview")
+                st.markdown(
+                    f"""<div style="padding: 1.5rem; 
+                    border-radius: 0.5rem; 
+                    border: 1px solid #4a4a4a; 
+                    background-color: #262730;
+                    color: #ffffff;
+                    margin: 1rem 0;">
+                    {st.session_state.search_overview}
+                    </div>""", 
+                    unsafe_allow_html=True
+                )
+                st.markdown("---")
 
         # Initialize library pagination state if not exists
         if "library_current_page" not in st.session_state:
