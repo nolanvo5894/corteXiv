@@ -111,110 +111,138 @@ def display_library_page():
         # Create tabs for different search methods
         search_tab, semantic_tab = st.tabs(["Metadata Search", "Semantic Search"])
         
-        # Initialize filtered_papers
-        filtered_papers = papers
-
+        # Initialize filtered_papers with all papers
+        if 'filtered_papers' not in st.session_state:
+            st.session_state.filtered_papers = papers
+        
         # Handle metadata search
         with search_tab:
-            # Add structured search options
-            col1, col2 = st.columns([2, 1])
+            # Add search input
+            search_term = st.text_input(
+                "What do you want to search for in your library?",
+                value=st.session_state.get('metadata_search_term', ''),
+                placeholder="Enter your search term...",
+                key="metadata_search"
+            ).lower()
+            
+            # Add field selector and buttons in columns
+            col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
-                search_term = st.text_input(
-                    "Search term",
-                    placeholder="Enter your search term...",
-                    key="metadata_search"  # Add unique key
-                ).lower()
-            with col2:
                 search_field = st.selectbox(
                     "Search in",
                     options=["All Fields", "Title", "Authors", "Categories"],
                     index=0,
-                    key="metadata_field"  # Add unique key
+                    key="metadata_field"
                 )
+            with col2:
+                if st.button("🔍 Search", use_container_width=True):
+                    # Store search term in session state
+                    st.session_state.metadata_search_term = search_term
+                    
+                    # Filter papers based on selected field and search term
+                    if search_term:
+                        if search_field == "All Fields":
+                            st.session_state.filtered_papers = [
+                                p for p in papers
+                                if search_term in p['title'].lower()
+                                or search_term in p['authors'].lower()
+                                or search_term in p['categories'].lower()
+                            ]
+                        elif search_field == "Title":
+                            st.session_state.filtered_papers = [p for p in papers if search_term in p['title'].lower()]
+                        elif search_field == "Authors":
+                            st.session_state.filtered_papers = [p for p in papers if search_term in p['authors'].lower()]
+                        elif search_field == "Categories":
+                            st.session_state.filtered_papers = [p for p in papers if search_term in p['categories'].lower()]
             
-            # Filter papers based on selected field and search term
-            if search_term:
-                if search_field == "All Fields":
-                    filtered_papers = [
-                        p for p in papers
-                        if search_term in p['title'].lower()
-                        or search_term in p['authors'].lower()
-                        or search_term in p['categories'].lower()
-                    ]
-                elif search_field == "Title":
-                    filtered_papers = [p for p in papers if search_term in p['title'].lower()]
-                elif search_field == "Authors":
-                    filtered_papers = [p for p in papers if search_term in p['authors'].lower()]
-                elif search_field == "Categories":
-                    filtered_papers = [p for p in papers if search_term in p['categories'].lower()]
+            with col3:
+                if st.button("🌬️ Clear", use_container_width=True):
+                    # Reset search state
+                    st.session_state.filtered_papers = papers
+                    st.session_state.metadata_search_term = ""
+                    st.rerun()
 
         # Handle semantic search
         with semantic_tab:
-            semantic_query = st.text_input(
-                "Search paper abstracts semantically",
-                placeholder="Describe what you're looking for...",
-                key="semantic_search"  # Add unique key
-            )
-            
-            if semantic_query:
-                # Get Snowflake session and setup Cortex search
-                session = get_snowflake_session()
-                root = Root(session)
-                svc = root.databases[CORTEX_SEARCH_DATABASE].schemas[CORTEX_SEARCH_SCHEMA].cortex_search_services[CORTEX_SEARCH_ABSTRACT_SERVICE]
-                
-                # Perform semantic search without filter
-                response = svc.search(
-                    semantic_query, 
-                    ["ABSTRACT", "PAPER_ID"], 
-                    limit=len(papers)  # Get all papers, ranked by relevance
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                semantic_query = st.text_input(
+                    "Search paper abstracts semantically",
+                    value=st.session_state.get('semantic_search_term', ''),
+                    placeholder="Describe what you're looking for...",
+                    key="semantic_search"
                 )
+            with col2:
+                col2_1, col2_2 = st.columns(2)
+                with col2_1:
+                    if st.button("🔍 Search", key="semantic_search_btn", use_container_width=True):
+                        if semantic_query:
+                            # Store search term in session state
+                            st.session_state.semantic_search_term = semantic_query
+                            
+                            # Get Snowflake session and setup Cortex search
+                            session = get_snowflake_session()
+                            root = Root(session)
+                            svc = root.databases[CORTEX_SEARCH_DATABASE].schemas[CORTEX_SEARCH_SCHEMA].cortex_search_services[CORTEX_SEARCH_ABSTRACT_SERVICE]
+                            
+                            # Perform semantic search
+                            response = svc.search(
+                                semantic_query, 
+                                ["ABSTRACT", "PAPER_ID"], 
+                                limit=len(papers)
+                            )
+                            
+                            # Map results back to full paper metadata
+                            paper_id_to_metadata = {p['paper_id']: p for p in papers}
+                            st.session_state.filtered_papers = [
+                                paper_id_to_metadata[result['PAPER_ID']]
+                                for result in response.results
+                                if result['PAPER_ID'] in paper_id_to_metadata
+                            ]
                 
-                # Map results back to full paper metadata
-                paper_id_to_metadata = {p['paper_id']: p for p in papers}
-                filtered_papers = [
-                    paper_id_to_metadata[result['PAPER_ID']]
-                    for result in response.results
-                    if result['PAPER_ID'] in paper_id_to_metadata
-                ]
+                with col2_2:
+                    if st.button("❌ Clear", key="semantic_clear_btn", use_container_width=True):
+                        # Reset search state
+                        st.session_state.filtered_papers = papers
+                        st.session_state.semantic_search_term = ""
+                        st.rerun()
 
         # Display number of results
-        st.write(f"Found {len(filtered_papers)} papers")
+        st.write(f"Found {len(st.session_state.filtered_papers)} papers")
         
-        # Display papers in a grid layout
-        cols = st.columns(2)
-        for idx, paper in enumerate(filtered_papers):
-            with cols[idx % 2]:
-                with st.container(border=True):
-                    st.markdown(f"### {paper['title']}")
-                    st.write(f"**Authors:** {paper['authors']}")
-                    st.write(f"**Published:** {paper['published_date'].strftime('%Y-%m-%d')}")
-                    st.write(f"**Categories:** {paper['categories']}")
-                    
-                    # Add buttons for actions
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("Chat with Paper", key=f"lib_chat_{paper['paper_id']}"):
-                            st.session_state.previous_page = "library"
-                            st.session_state.current_paper_id = paper['paper_id']
-                            st.session_state.page = "chat"
-                            st.rerun()
-                    with col2:
-                        st.markdown(f"[Download PDF]({paper['pdf_url']})")
-                    with col3:
-                        if st.button("🗑️ Delete", key=f"delete_{paper['paper_id']}", 
-                                   type="secondary", use_container_width=True):
-                            with st.spinner('Deleting paper...'):
-                                if delete_paper(paper['paper_id']):
-                                    st.success(f"Deleted paper: {paper['title']}")
-                                    st.rerun()
-                                else:
-                                    st.error("Failed to delete paper")
-                    
-                    # Show abstract in expander
-                    with st.expander("Show Abstract"):
-                        st.write(paper['abstract'])
+        # Display papers in a single column layout
+        for idx, paper in enumerate(st.session_state.filtered_papers):
+            with st.container(border=True):
+                st.markdown(f"### {paper['title']}")
+                st.write(f"**Authors:** {paper['authors']}")
+                st.write(f"**Published:** {paper['published_date'].strftime('%Y-%m-%d')}")
+                st.write(f"**Categories:** {paper['categories']}")
                 
-                st.markdown("---")  # Add separator between papers
+                # Add buttons for actions
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("Chat with Paper", key=f"lib_chat_{paper['paper_id']}"):
+                        st.session_state.previous_page = "library"
+                        st.session_state.current_paper_id = paper['paper_id']
+                        st.session_state.page = "chat"
+                        st.rerun()
+                with col2:
+                    st.markdown(f"[Download PDF]({paper['pdf_url']})")
+                with col3:
+                    if st.button("🗑️ Delete", key=f"delete_{paper['paper_id']}", 
+                               type="secondary", use_container_width=True):
+                        with st.spinner('Deleting paper...'):
+                            if delete_paper(paper['paper_id']):
+                                st.success(f"Deleted paper: {paper['title']}")
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete paper")
+                
+                # Show abstract in expander
+                with st.expander("Show Abstract"):
+                    st.write(paper['abstract'])
+            
+            st.markdown("---")  # Add separator between papers
                 
     except Exception as e:
         st.error(f"Error loading library: {str(e)}")
