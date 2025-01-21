@@ -46,7 +46,8 @@ def initialize_session_state():
         "current_page": 1,
         "cached_results": None,
         "search_clicked": False,
-        "previous_page": "search"
+        "previous_page": "search",
+        "last_nav_selection": None
     }
     
     for key, value in defaults.items():
@@ -366,14 +367,17 @@ def handle_navigation():
         key="nav_radio"
     )
     
-    if st.session_state.page != "chat":
-        if nav_selection == "🔍 Search Papers" and st.session_state.page != "search":
+    # Handle navigation changes when selection changes
+    if nav_selection != st.session_state.get("last_nav_selection"):
+        st.session_state.last_nav_selection = nav_selection
+        
+        if nav_selection == "🔍 Search Papers":
             st.session_state.page = "search"
             st.rerun()
-        elif nav_selection == "🔖 Personal Library" and st.session_state.page != "library":
+        elif nav_selection == "🔖 Personal Library":
             st.session_state.page = "library"
             st.rerun()
-        elif nav_selection == "❓ How to Use" and st.session_state.page != "how_to":
+        elif nav_selection == "❓ How to Use":
             st.session_state.page = "how_to"
             st.rerun()
 
