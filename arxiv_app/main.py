@@ -25,6 +25,7 @@ from config import (
     CORTEX_SEARCH_ABSTRACT_SERVICE
 )
 from functools import partial
+import time
 
 logger = setup_logging()
 logger.info("Starting main.py")
@@ -319,35 +320,66 @@ def display_search_form():
 @st.fragment
 def display_paper_container(paper, paper_obj, idx, papers):
     """Fragment to display a single paper container."""
-    with st.expander(f"{idx + 1}. {paper['Title']}"):
+    paper_id = paper['arXiv ID']
+    
+    # Track processing state for this paper
+    if f"processing_{paper_id}" not in st.session_state:
+        st.session_state[f"processing_{paper_id}"] = False
+    if f"process_start_{paper_id}" not in st.session_state:
+        st.session_state[f"process_start_{paper_id}"] = None
+    
+    with st.container(border=True):
+        st.markdown(f"### {paper['Title']}")
         st.write(f"**Authors:** {paper['Authors']}")
         st.write(f"**Published:** {paper['Published']}")
         st.write(f"**Categories:** {paper['Categories']}")
-        st.write("**Abstract:**")
-        st.write(paper['Abstract'])
-        st.write(f"**arXiv ID:** {paper['arXiv ID']}")
         
-        col1, col2 = st.columns([1, 1])
+        # Add buttons for actions
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown(f"[Download PDF]({paper['PDF URL']})")
-        
-        with col2:
-            paper_id = paper['arXiv ID']
+            # Create a placeholder for the button/spinner
+            button_placeholder = st.empty()
+            
             if check_paper_exists(paper_id):
-                if st.button("Chat with Paper", key=f"chat_{paper_id}"):
+                if button_placeholder.button("Chat with Paper", key=f"chat_{paper_id}"):
                     st.session_state.previous_page = "search"
                     st.session_state.current_paper_id = paper_id
                     st.session_state.page = "chat"
                     st.rerun()
             else:
-                if st.button(f"Add to Database", key=f"add_{paper_id}"):
-                    with st.spinner('Processing paper...'):
-                        success = process_and_upload_paper(paper_obj)
-                        if success:
-                            st.success(f"Added paper: {paper['Title']}")
-                            st.rerun()
-                        else:
-                            st.error("Failed to add paper")
+                if st.session_state[f"processing_{paper_id}"]:
+                    elapsed_time = time.time() - st.session_state[f"process_start_{paper_id}"]
+                    remaining_time = max(60 - elapsed_time, 0)
+                    
+                    if remaining_time > 0:
+                        button_placeholder.markdown("⏳ Adding to Cortex...")
+                        time.sleep(1)  # Sleep for 1 second
+                        st.rerun()
+                    else:
+                        # Reset processing state
+                        st.session_state[f"processing_{paper_id}"] = False
+                        st.session_state[f"process_start_{paper_id}"] = None
+                        st.rerun()
+                else:
+                    if button_placeholder.button("Add to Database", key=f"add_{paper_id}"):
+                        with st.spinner('Processing paper...'):
+                            success = process_and_upload_paper(paper_obj)
+                            if success:
+                                # Start the Cortex processing phase
+                                st.session_state[f"processing_{paper_id}"] = True
+                                st.session_state[f"process_start_{paper_id}"] = time.time()
+                                st.rerun()
+                            else:
+                                st.error("Failed to add paper")
+        
+        with col2:
+            st.markdown(f"[Download PDF]({paper['PDF URL']})")
+        with col3:
+            pass  # Keep the column for layout consistency
+        
+        # Show abstract in expander
+        with st.expander("Show Abstract"):
+            st.write(paper['Abstract'])
 
 def display_search_results():
     """Display paginated search results."""
@@ -372,12 +404,12 @@ def display_search_results():
     start_idx = (page - 1) * papers_per_page
     end_idx = min(start_idx + papers_per_page, len(papers_df))
     
-    cols = st.columns(2)
+    # Display papers in a single column
     for idx in range(start_idx, end_idx):
-        with cols[idx % 2]:
-            paper = papers_df.iloc[idx]
-            paper_obj = papers[idx]
-            display_paper_container(paper, paper_obj, idx, papers)
+        paper = papers_df.iloc[idx]
+        paper_obj = papers[idx]
+        display_paper_container(paper, paper_obj, idx, papers)
+        st.markdown("---")  # Add separator between papers
 
 def handle_navigation():
     """Handle navigation between pages."""
