@@ -9,14 +9,18 @@ A modern interface for exploring and interacting with arXiv papers, powered by S
 - Save papers to your personal library
 - Organize and search for papers by metadata
 - Semantic search through your saved papers using Snowflake Cortex
-- Smart paper recommendations based on your library content
+- Smart paper recommendations based on your library content 
 
 ### 💬 Interactive Paper Chat
 - Chat with any paper in your library
 - Get instant answers about paper content
 - AI-generated deep dive questions
 - Conversation memory.
-- AI-generated paper summaries and key insights. Key insights comes from the LLM 
+- AI-generated paper summaries and key insights. Key insights comes from the LLM
+
+### Important Notes to Users
+- Adding a paper to the database could take a few minutes for parsing, chunking, and uploading to Snowflake
+- When using the Search features in the Personal Library, please use the Clear button if you want to start a new search.
 
 ## 🛠 Technology Stack
 
